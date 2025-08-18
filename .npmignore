@@ -5,3 +5,6 @@
 
 tsconfig.json
 tsup.config.ts 
+
+# custom config files
+config/
