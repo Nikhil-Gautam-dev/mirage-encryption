@@ -8,3 +8,4 @@ tsup.config.ts
 
 # custom config files
 config/
+local-master-key.txt

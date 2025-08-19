@@ -1,3 +1,4 @@
+import { EEncryptionAlgorithm } from "../enums/enums";
 
 export type TSchemaFilePath = string;
 export type TCryptSharedFilePath = string;
@@ -15,10 +16,6 @@ export interface IEncryptionSchema {
             }
         }
     }
-}
-
-export enum EEncryptionAlgorithm {
-    AEAD_AES_256_CBC_HMAC_SHA_512_Deterministic = "AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic"
 }
 
 

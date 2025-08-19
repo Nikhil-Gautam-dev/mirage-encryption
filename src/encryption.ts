@@ -2,6 +2,8 @@ import { MongoClient, MongoClientOptions } from "mongodb";
 import { IKMSProvider } from "./types/kms";
 import { IEncryptionSchema, IKeyVault, TCryptSharedFilePath, TSchemaFilePath } from "./types/schema";
 import { fileExists } from "./utils/file.utils";
+import { EncryptionSchemaService } from "./encryptionSchemaService";
+import { DekManager } from "./dekManager";
 
 
 export class ServerEncryptionService {
@@ -10,6 +12,7 @@ export class ServerEncryptionService {
     private readonly kmsProvider: IKMSProvider;
     private readonly keyVault: IKeyVault;
     private readonly cryptSharedFilePath: TCryptSharedFilePath;
+    private readonly mongoClient: MongoClient;
 
     private encryptedMongoClient: MongoClient | undefined;
     private config: MongoClientOptions | undefined;
@@ -35,6 +38,7 @@ export class ServerEncryptionService {
         this.kmsProvider = kmsProvider;
         this.keyVault = keyVault;
         this.cryptSharedFilePath = cryptSharedFilePath;
+        this.mongoClient = new MongoClient(mongoUri);
     }
 
 
@@ -135,6 +139,14 @@ export class ServerEncryptionService {
 
     private loadSchemaFromFile(schemaFilePath: string): any {
 
+        const dekManager = new DekManager(
+            this.mongoClient,
+            `${this.keyVault.database}.${this.keyVault.collection}`,
+            this.keyVault,
+            this.kmsProvider
+        );
+        const encryptionSchemaService = new EncryptionSchemaService(dekManager);
+        return encryptionSchemaService.generateCSFLESchema(schemaFilePath);
     }
 
 }

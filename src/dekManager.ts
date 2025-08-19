@@ -1,64 +1,127 @@
 import { ClientEncryption, MongoClient } from "mongodb";
-import { IKMSProvider } from "./types/kms";
+import {
+    IKMSProvider
+} from "./types/kms";
 import { IKeyVault } from "./types/schema";
 
-
 export class DekManager {
-
     public readonly mongoClient: MongoClient;
     private readonly keyVaultNamespace: string;
+    private readonly keyVault: IKeyVault;
     private readonly kmsProvider: IKMSProvider;
 
-    constructor(mongoClient: MongoClient, keyVaultNamespace: string, kmsProvider: IKMSProvider) {
+    constructor(mongoClient: MongoClient, keyVaultNamespace: string, keyVault: IKeyVault, kmsProvider: IKMSProvider) {
         this.mongoClient = mongoClient;
         this.keyVaultNamespace = keyVaultNamespace;
+        this.keyVault = keyVault;
         this.kmsProvider = kmsProvider;
     }
 
     public async getDEK(fieldKeyAltName: string): Promise<string> {
-
         await this.mongoClient.connect();
 
-        const keyVault = this.mongoClient.db("encryption").collection("__keyVault");
+        const keyVault = this.mongoClient.db(this.keyVault.database).collection(this.keyVault.collection);
 
+        // Check if a DEK with this altName already exists
         const existingKey = await keyVault.findOne({ keyAltNames: fieldKeyAltName });
-
         if (existingKey) {
             return existingKey._id.toString();
         }
 
-        this.mongoClient.close();
-
-        const encryption = new ClientEncryption(
-            this.mongoClient,
-            {
-                keyVaultNamespace: this.keyVaultNamespace,
-                kmsProviders: this.kmsProvider as any,
-            }
-        );
+        const encryption = new ClientEncryption(this.mongoClient, {
+            keyVaultNamespace: this.keyVaultNamespace,
+            kmsProviders: this.getKmsProviderConfig(this.kmsProvider),
+        });
 
         const masterKey = this.getMasterKey(this.kmsProvider);
         const dekId = await encryption.createDataKey(this.kmsProvider.type, {
             masterKey,
-            keyAltNames: [fieldKeyAltName]
+            keyAltNames: [fieldKeyAltName],
         });
 
-        return dekId.toString();
+        return dekId.toString("base64");
     }
 
-    public getMasterKey(provider: IKMSProvider): Record<string, any> | undefined {
+    /**
+     * Returns the kmsProviders configuration expected by ClientEncryption.
+     */
+    private getKmsProviderConfig(provider: IKMSProvider): Record<string, any> {
         switch (provider.type) {
             case "local":
-                return undefined;
+                return { local: { key: provider.local.key } };
+
+            case "aws":
+                return {
+                    aws: {
+                        accessKeyId: provider.aws.accessKeyId,
+                        secretAccessKey: provider.aws.secretAccessKey,
+                        sessionToken: provider.aws.sessionToken,
+                    },
+                };
 
             case "azure":
                 return {
-                    keyVaultEndpoint: "https://<your-key-vault-name>.vault.azure.net/",
-                    keyName: "your-key-name",
+                    azure: {
+                        clientId: provider.azure.clientId,
+                        clientSecret: provider.azure.clientSecret,
+                        tenantId: provider.azure.tenantId,
+                    },
+                };
+
+            case "gcp":
+                return {
+                    gcp: {
+                        email: provider.gcp.email,
+                        privateKey: provider.gcp.privateKey,
+                    },
+                };
+
+            case "kmip":
+                return {
+                    kmip: {
+                        endpoint: provider.kmip.endpoint,
+                    },
                 };
 
             default:
                 throw new Error(`Unsupported KMS provider: ${(provider as any).type}`);
+        }
+    }
+
+    /**
+     * Returns the masterKey for createDataKey based on the KMS provider.
+     */
+    private getMasterKey(provider: IKMSProvider): Record<string, any> | undefined {
+        switch (provider.type) {
+            case "local":
+                return undefined; // local does not need a masterKey
+
+            case "aws":
+                return {
+                    region: provider.masterKey.region,
+                    key: provider.masterKey.key,
+                    endpoint: provider.masterKey.endpoint,
+                };
+
+            case "azure":
+                return {
+                    keyVaultEndpoint: provider.masterKey.keyVaultEndpoint,
+                    keyName: provider.masterKey.keyName,
+                    keyVersion: provider.masterKey.keyVersion,
+                };
+
+            case "gcp":
+                return {
+                    projectId: provider.masterKey.projectId,
+                    location: provider.masterKey.location,
+                    keyRing: provider.masterKey.keyRing,
+                    keyName: provider.masterKey.keyName,
+                    keyVersion: provider.masterKey.keyVersion,
+                    endpoint: provider.masterKey.endpoint,
+                };
+
+            case "kmip":
+                return provider.masterKey; // may be undefined or { keyId }
         }
     }
 }

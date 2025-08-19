@@ -30,6 +30,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "mongodb": "^6.18.0"
+    "mongodb": "^6.18.0",
+    "mongodb-client-encryption": "^6.5.0"
   }
 }
