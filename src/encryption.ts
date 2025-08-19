@@ -54,17 +54,19 @@ export class ServerEncryptionService {
         )
     }
 
-    public initializeWithFile(schemaFilePath: TSchemaFilePath, schemaLoader?: (file: string) => IEncryptionSchema) {
+    public async initializeWithFile(schemaFilePath: TSchemaFilePath, schemaLoader?: (file: string) => IEncryptionSchema) {
 
         this.validateSchemaFilePath(schemaFilePath);
 
         if (schemaLoader === undefined) {
-            this.schema = this.loadSchemaFromFile(schemaFilePath);
+            this.schema = await this.loadSchemaFromFile(schemaFilePath);
         }
 
         else {
             this.schema = schemaLoader(schemaFilePath);
         }
+
+        console.log("Encryption schema loaded from file:", this.schema);
 
         this.initialize();
     }
@@ -104,7 +106,7 @@ export class ServerEncryptionService {
             throw new Error("Schema file path is required");
         }
 
-        if (fileExists(filePath)) {
+        if (!fileExists(filePath)) {
             throw new Error(`Schema file does not exist at path: ${filePath}`);
         }
 
@@ -124,10 +126,33 @@ export class ServerEncryptionService {
             throw new Error("Encryption schema is required");
         }
 
+        // Create the proper KMS providers structure based on the provider type
+        const kmsProviders: Record<string, any> = {};
+        switch (this.kmsProvider.type) {
+            case "local":
+                kmsProviders.local = { key: this.kmsProvider.local.key };
+                break;
+            case "aws":
+                kmsProviders.aws = {
+                    accessKeyId: this.kmsProvider.aws.accessKeyId,
+                    secretAccessKey: this.kmsProvider.aws.secretAccessKey,
+                    sessionToken: this.kmsProvider.aws.sessionToken
+                };
+                break;
+            case "azure":
+                kmsProviders.azure = {
+                    clientId: this.kmsProvider.azure.clientId,
+                    clientSecret: this.kmsProvider.azure.clientSecret,
+                    tenantId: this.kmsProvider.azure.tenantId
+                };
+                break;
+            // Add other provider types as needed
+        }
+
         return {
             autoEncryption: {
                 keyVaultNamespace: `${this.keyVault.database}.${this.keyVault.collection}`,
-                kmsProviders: this.kmsProvider,
+                kmsProviders: kmsProviders,
                 schemaMap: this.schema,
                 extraOptions: {
                     cryptSharedFilePath: this.cryptSharedFilePath,
@@ -137,7 +162,7 @@ export class ServerEncryptionService {
         };
     }
 
-    private loadSchemaFromFile(schemaFilePath: string): any {
+    private async loadSchemaFromFile(schemaFilePath: string): Promise<IEncryptionSchema> {
 
         const dekManager = new DekManager(
             this.mongoClient,
