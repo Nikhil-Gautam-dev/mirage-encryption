@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import { DekManager } from "./dekManager";
-import { IEncryptionSchema, TSchemaFilePath } from "./types/schema";
+import { IEncryptedField, IEncryptionSchema, TBsonType, TSchemaFilePath } from "./types/schema";
 import { EEncryptionAlgorithm } from "./enums/enums";
+import { Binary } from "mongodb";
 
 type FieldMap = { [key: string]: string };
 type CollectionSchema = { [collectionName: string]: FieldMap };
@@ -34,7 +35,7 @@ export class EncryptionSchemaService {
     for (const collectionDef of jsonArray) {
       const [collectionName] = Object.keys(collectionDef);
       const fields = collectionDef[collectionName];
-      const properties: Record<string, any> = {};
+      const properties: Record<string, IEncryptedField> = {};
 
       for (const [fieldName, fieldType] of Object.entries(fields)) {
         const bsonType = fieldType.toLowerCase();
@@ -45,8 +46,8 @@ export class EncryptionSchemaService {
 
         properties[fieldName] = {
           encrypt: {
-            keyId: [dekId], // CSFLE expects array of keyIds
-            bsonType: bsonType,
+            keyId: [dekId as Binary], // CSFLE expects array of keyIds
+            bsonType: bsonType as TBsonType,
             algorithm: algorithm,
           },
         };

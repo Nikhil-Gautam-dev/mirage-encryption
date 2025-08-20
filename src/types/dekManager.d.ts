@@ -1,4 +1,4 @@
-import { ClientEncryption, MongoClient } from "mongodb";
+import { MongoClient } from "mongodb";
 import { IKMSProvider } from "./kms";
 import { IKeyVault } from "./schema";
 

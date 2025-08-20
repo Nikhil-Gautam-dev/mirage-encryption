@@ -4,6 +4,7 @@ import { IEncryptionSchema, IKeyVault, TCryptSharedFilePath, TSchemaFilePath } f
 import { fileExists } from "./utils/file.utils";
 import { EncryptionSchemaService } from "./encryptionSchemaService";
 import { DekManager } from "./dekManager";
+import path from "path";
 
 
 export class ServerEncryptionService {
@@ -13,38 +14,38 @@ export class ServerEncryptionService {
     private readonly keyVault: IKeyVault;
     private readonly cryptSharedFilePath: TCryptSharedFilePath;
     private readonly mongoClient: MongoClient;
+    private readonly mongoClientOptions: MongoClientOptions;
 
     private encryptedMongoClient: MongoClient | undefined;
     private config: MongoClientOptions | undefined;
     private schema: IEncryptionSchema | undefined;
 
-    constructor(mongoUri: string, kmsProvider: IKMSProvider, keyVault: IKeyVault, cryptSharedFilePath: TCryptSharedFilePath) {
+    constructor(
+        mongoUri: string,
+        kmsProvider: IKMSProvider,
+        keyVault: IKeyVault,
+        cryptSharedFilePath: TCryptSharedFilePath,
+        options?: MongoClientOptions
+    ) {
 
         if (!mongoUri || mongoUri === "") {
             throw new Error("Invalid MongoDB URI");
         }
 
-        switch (kmsProvider.type) {
-            case "local":
-                break;
-            case "azure":
-                break;
-            default:
-                throw new Error("Unsupported KMS provider");
-        }
-
         this.validateCryptSharedFilePath(cryptSharedFilePath);
+
         this.mongoUri = mongoUri;
         this.kmsProvider = kmsProvider;
         this.keyVault = keyVault;
         this.cryptSharedFilePath = cryptSharedFilePath;
         this.mongoClient = new MongoClient(mongoUri);
+        this.mongoClientOptions = options || {};
     }
 
 
-    private initialize(options?: MongoClientOptions): void {
+    private initialize(): void {
         this.config = {
-            ...options,
+            ...this.mongoClientOptions,
             ...this.buildEncryptionConfig()
         };
 
@@ -65,8 +66,6 @@ export class ServerEncryptionService {
         else {
             this.schema = schemaLoader(schemaFilePath);
         }
-
-        console.log("Encryption schema loaded from file:", this.schema);
 
         this.initialize();
     }
@@ -146,7 +145,8 @@ export class ServerEncryptionService {
                     tenantId: this.kmsProvider.azure.tenantId
                 };
                 break;
-            // Add other provider types as needed
+            default:
+                throw new Error("Unsupported KMS provider");
         }
 
         return {
@@ -155,8 +155,8 @@ export class ServerEncryptionService {
                 kmsProviders: kmsProviders,
                 schemaMap: this.schema,
                 extraOptions: {
-                    cryptSharedFilePath: this.cryptSharedFilePath,
-                    cryptSharedLibRequired: true,
+                    cryptSharedFilePath: path.resolve(this.cryptSharedFilePath),
+                    cryptSharedLibRequired: false,
                 }
             }
         };

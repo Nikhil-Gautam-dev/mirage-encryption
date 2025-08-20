@@ -1,8 +1,8 @@
-import { ClientEncryption, MongoClient } from "mongodb";
+import { Binary, ClientEncryption, MongoClient, } from "mongodb";
 import {
     IKMSProvider
 } from "./types/kms";
-import { IKeyVault } from "./types/schema";
+import { IKeyVault, IKeyVaultDocument } from "./types/schema";
 
 export class DekManager {
     public readonly mongoClient: MongoClient;
@@ -17,29 +17,37 @@ export class DekManager {
         this.kmsProvider = kmsProvider;
     }
 
-    public async getDEK(fieldKeyAltName: string): Promise<string> {
+    public async getDEK(fieldKeyAltName: string): Promise<Binary> {
         await this.mongoClient.connect();
 
-        const keyVault = this.mongoClient.db(this.keyVault.database).collection(this.keyVault.collection);
+        try {
+            const keyVault = this.mongoClient.db(this.keyVault.database).collection(this.keyVault.collection);
 
-        // Check if a DEK with this altName already exists
-        const existingKey = await keyVault.findOne({ keyAltNames: fieldKeyAltName });
-        if (existingKey) {
-            return existingKey._id.toString();
+            // Check if a DEK with this altName already exists
+            const existingKey = await keyVault.findOne<IKeyVaultDocument>({ keyAltNames: fieldKeyAltName });
+            if (existingKey) {
+                return existingKey._id as Binary;
+            }
+
+            const encryption = new ClientEncryption(this.mongoClient, {
+                keyVaultNamespace: this.keyVaultNamespace,
+                kmsProviders: this.getKmsProviderConfig(this.kmsProvider),
+            });
+
+            const masterKey = this.getMasterKey(this.kmsProvider);
+            const dekId = await encryption.createDataKey(this.kmsProvider.type, {
+                masterKey,
+                keyAltNames: [fieldKeyAltName],
+            });
+
+            return dekId;
+        } catch (error) {
+            console.error("Error getting DEK:", error);
+            throw error;
         }
-
-        const encryption = new ClientEncryption(this.mongoClient, {
-            keyVaultNamespace: this.keyVaultNamespace,
-            kmsProviders: this.getKmsProviderConfig(this.kmsProvider),
-        });
-
-        const masterKey = this.getMasterKey(this.kmsProvider);
-        const dekId = await encryption.createDataKey(this.kmsProvider.type, {
-            masterKey,
-            keyAltNames: [fieldKeyAltName],
-        });
-
-        return dekId.toString("base64");
+        finally {
+            await this.mongoClient.close();
+        }
     }
 
     /**

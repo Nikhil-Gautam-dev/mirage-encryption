@@ -10,7 +10,7 @@ export type IKMSProvider =
 export interface ILocalKMSProvider {
     type: "local";
     local: {
-        key: string; // 96-byte base64 string
+        key: string;
     };
     masterKey?: never; // local does not require masterKey
 }
@@ -25,7 +25,7 @@ export interface IAwsKMSProvider {
     };
     masterKey: {
         region: string;
-        key: string; // ARN of the AWS CMK
+        key: string;
         endpoint?: string;
     };
 }
@@ -39,7 +39,7 @@ export interface IAzureKMSProvider {
         tenantId: string;
     };
     masterKey: {
-        keyVaultEndpoint: string; // e.g. "example.vault.azure.net"
+        keyVaultEndpoint: string;
         keyName: string;
         keyVersion?: string;
     };
@@ -49,8 +49,8 @@ export interface IAzureKMSProvider {
 export interface IGcpKMSProvider {
     type: "gcp";
     gcp: {
-        email: string;      // service account email
-        privateKey: string; // PEM encoded
+        email: string;
+        privateKey: string;
     };
     masterKey: {
         projectId: string;
@@ -66,9 +66,9 @@ export interface IGcpKMSProvider {
 export interface IKmipKMSProvider {
     type: "kmip";
     kmip: {
-        endpoint: string; // e.g. "example.com:5696"
+        endpoint: string;
     };
     masterKey?: {
-        keyId?: string; // optional key identifier in KMIP
+        keyId?: string;
     };
 }
