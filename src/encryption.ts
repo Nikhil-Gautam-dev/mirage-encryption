@@ -5,6 +5,7 @@ import { fileExists } from "./utils/file.utils";
 import { EncryptionSchemaService } from "./encryptionSchemaService";
 import { DekManager } from "./dekManager";
 import path from "path";
+import { validateCSFLESchema } from "./utils/schema.utils";
 
 
 export class ServerEncryptionService {
@@ -131,6 +132,8 @@ export class ServerEncryptionService {
         if (!this.schema) {
             throw new Error("Encryption schema is required");
         }
+
+        validateCSFLESchema(this.schema)
 
         // Create the proper KMS providers structure based on the provider type
         const kmsProviders: Record<string, any> = {};
