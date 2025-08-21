@@ -81,11 +81,18 @@ export class ServerEncryptionService {
     }
 
 
-    public getMongoClient(): MongoClient | undefined {
+    public getMongoClient(): MongoClient {
         if (!this.encryptedMongoClient) {
             throw new Error("MongoDB client is not initialized");
         }
         return this.encryptedMongoClient;
+    }
+
+    public getSchema(): IEncryptionSchema {
+        if (!this.schema) {
+            throw new Error("Encryption schema is not initialized");
+        }
+        return this.schema;
     }
 
 

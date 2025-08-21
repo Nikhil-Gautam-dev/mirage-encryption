@@ -42,7 +42,6 @@ export class DekManager {
 
             return dekId;
         } catch (error) {
-            console.error("Error getting DEK:", error);
             throw error;
         }
         finally {

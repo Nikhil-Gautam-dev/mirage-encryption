@@ -58,7 +58,6 @@ export class EncryptionSchemaService {
         properties: properties,
       };
 
-      console.log(`Processed schema for collection: ${collectionName}`);
     }
 
     return schemaMap;

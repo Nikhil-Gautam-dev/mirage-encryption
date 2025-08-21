@@ -36,5 +36,13 @@ export declare class ServerEncryptionService {
      * @returns The MongoDB client instance
      * @throws Error if client is not initialized
      */
-    public getMongoClient(): MongoClient | undefined;
+    public getMongoClient(): MongoClient;
+
+    /**
+     * Get the encryption schema
+     * 
+     * @returns The encryption schema configuration
+     * @throws Error if schema is not initialized
+     */
+    public getSchema(): IEncryptionSchema;
 }
