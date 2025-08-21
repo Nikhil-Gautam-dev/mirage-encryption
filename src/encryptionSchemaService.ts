@@ -1,8 +1,7 @@
 import * as fs from "fs";
 import { DekManager } from "./dekManager";
-import { IEncryptedField, IEncryptionSchema, TBsonType, TSchemaFilePath } from "./types/schema";
+import { IEncryptionSchema, TBsonType, TProperties, TSchemaFilePath } from "./types/schema";
 import { EEncryptionAlgorithm } from "./enums/enums";
-import { Binary } from "mongodb";
 
 type FieldMap = { [key: string]: string };
 type CollectionSchema = { [collectionName: string]: FieldMap };
@@ -19,7 +18,6 @@ export class EncryptionSchemaService {
    */
   public async generateCSFLESchema(
     schemaFilePath: TSchemaFilePath,
-    algorithm: EEncryptionAlgorithm = EEncryptionAlgorithm.AEAD_AES_256_CBC_HMAC_SHA_512_Deterministic
   ): Promise<IEncryptionSchema> {
 
     if (!fs.existsSync(schemaFilePath)) {
@@ -35,31 +33,59 @@ export class EncryptionSchemaService {
     for (const collectionDef of jsonArray) {
       const [collectionName] = Object.keys(collectionDef);
       const fields = collectionDef[collectionName];
-      const properties: Record<string, IEncryptedField> = {};
-
-      for (const [fieldName, fieldType] of Object.entries(fields)) {
-        const bsonType = fieldType.toLowerCase();
-        const altName = `${collectionName}.${fieldName}`;
-
-        // Get or create DEK using DekManager
-        const dekId = await this.dekManager.getDEK(altName);
-
-        properties[fieldName] = {
-          encrypt: {
-            keyId: [dekId as Binary], // CSFLE expects array of keyIds
-            bsonType: bsonType as TBsonType,
-            algorithm: algorithm,
-          },
-        };
-      }
-
       schemaMap[collectionName] = {
         bsonType: "object",
-        properties: properties,
+        properties: await this.processFields(fields, collectionName),
       };
-
     }
 
     return schemaMap;
   }
+
+  private async processFields(fields: FieldMap, collectionName: string, parentPath = ""): Promise<Record<string, TProperties>> {
+    const properties: Record<string, TProperties> = {};
+
+    for (const [fieldName, fieldType] of Object.entries(fields)) {
+
+      const fullPath = parentPath
+        ? `${parentPath}.${fieldName}`
+        : `${collectionName}.${fieldName}`;
+
+      const bsonType: string = typeof fieldType === "string" ? fieldType.toLowerCase() : "object";
+
+      // Fetch DEK for this field
+      const dekId = await this.dekManager.getDEK(fullPath);
+
+      if (bsonType === "object" && typeof fieldType === "object") {
+        properties[fieldName] = {
+          bsonType: "object",
+          properties: await this.processFields(fieldType, collectionName, fullPath),
+        };
+      } else {
+        let algorithm: EEncryptionAlgorithm;
+        switch (bsonType) {
+          case "array":
+          case "object":
+          case "bool":
+          case "double":
+          case "decimal128":
+            algorithm = EEncryptionAlgorithm.RANDOM;
+            break;
+          default:
+            algorithm = EEncryptionAlgorithm.DETERMINISTIC;
+        }
+
+        properties[fieldName] = {
+          encrypt: {
+            keyId: [dekId],
+            bsonType: bsonType as TBsonType,
+            algorithm,
+          },
+        };
+      }
+    }
+
+    return properties;
+  };
+
 }

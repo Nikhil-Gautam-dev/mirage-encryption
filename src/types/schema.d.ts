@@ -18,7 +18,6 @@ import { Binary } from "mongodb";
 export type TBsonType =
     | "double"
     | "string"
-    | "object"
     | "array"
     | "binData"
     | "undefined"
@@ -38,20 +37,22 @@ export type TBsonType =
     | "minKey"
     | "maxKey";
 
-
+export interface IEncryptDefinition {
+    bsonType: TBsonType;
+    algorithm: string;
+    keyId: Binary[]
+}
 
 export interface IEncryptedField {
-    encrypt: {
-        keyId: Binary[];
-        algorithm: EEncryptionAlgorithm;
-        bsonType: TBsonType;
-    };
+    encrypt: IEncryptDefinition
 }
 
 export interface ICollectionEncryptionSchema {
     bsonType: "object";
-    properties: Record<string, IEncryptedField>;
+    properties: Record<string, TProperties>;
 }
+
+export type TProperties = IEncryptedField | ICollectionEncryptionSchema
 
 export type IEncryptionSchema = Record<string, ICollectionEncryptionSchema>;
 
