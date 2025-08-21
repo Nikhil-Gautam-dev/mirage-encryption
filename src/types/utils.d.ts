@@ -19,3 +19,16 @@ export declare function getMasterKey(): string;
  * @returns The base64-encoded master key
  */
 export declare function generateLocalKey(filePath?: string): string;
+
+/**
+ * Validates the given crypt_shared library path:
+ *  - Checks platform
+ *  - Checks file exists
+ *  - Checks correct extension
+ *  - Checks file header matches expected shared library format
+ *
+ * @param libPath - Full path to the library file
+ * @returns {string} - Returns validated path if correct
+ * @throws {Error} - If invalid
+ */
+export declare function validateCryptSharedLib(libPath: string): string;
