@@ -142,3 +142,4 @@ vite.config.ts.timestamp-*
 config/
 local-master-key.txt
 README.md
+docs/

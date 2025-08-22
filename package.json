@@ -1,14 +1,13 @@
 {
   "name": "mirage-encryption",
   "version": "0.0.1",
-  "description": "An utility encrytion package to use mongodb CSFLE. ",
+  "description": "A utility package for implementing MongoDB Client-Side Field Level Encryption (CSFLE) with support for multiple KMS providers",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
-    "test": "jest",
-    "pack": "tsup && npm pack"
+    "test": "jest"
   },
   "exports": {
     ".": {
@@ -21,9 +20,20 @@
     "dist"
   ],
   "keywords": [
-    "CSFLE"
+    "CSFLE",
+    "mongodb",
+    "encryption",
+    "field-level-encryption",
+    "client-side-encryption",
+    "data-encryption",
+    "security",
+    "kms",
+    "aws-kms",
+    "azure-key-vault",
+    "google-cloud-kms"
   ],
-  "authors": [
+  "author": "Rishabh Maheshwari, Nikhil Gautam",
+  "contributors": [
     {
       "name": "Rishabh Maheshwari"
     },
@@ -32,6 +42,17 @@
     }
   ],
   "license": "ISC",
+  "homepage": "https://github.com/Nikhil-Gautam-dev/mirage-encryption#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nikhil-Gautam-dev/mirage-encryption.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nikhil-Gautam-dev/mirage-encryption/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^24.3.0",
