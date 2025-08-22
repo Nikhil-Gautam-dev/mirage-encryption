@@ -173,8 +173,8 @@ export class ServerEncryptionService {
                 kmsProviders: kmsProviders,
                 schemaMap: this.schema,
                 extraOptions: {
-                    cryptSharedFilePath: path.resolve(this.cryptSharedFilePath),
-                    cryptSharedLibRequired: false,
+                    cryptSharedLibPath: path.resolve(this.cryptSharedFilePath),
+                    cryptSharedLibRequired: true,
                 }
             }
         };
