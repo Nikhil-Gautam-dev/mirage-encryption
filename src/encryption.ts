@@ -155,6 +155,13 @@ export class ServerEncryptionService {
                     tenantId: this.kmsProvider.azure.tenantId
                 };
                 break;
+
+            case "gcp": {
+                kmsProviders.gcp = {
+                    email: this.kmsProvider.gcp.email,
+                    privateKey: this.kmsProvider.gcp.privateKey
+                };
+            }
             default:
                 throw new Error("Unsupported KMS provider");
         }
