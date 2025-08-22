@@ -6,6 +6,8 @@ import { EncryptionSchemaService } from "./encryptionSchemaService";
 import { DekManager } from "./dekManager";
 import path from "path";
 import { validateCSFLESchema } from "./utils/schema.utils";
+import { ConfigurationError, ValidationError, EncryptionError } from "./errors/errors";
+import { IEncryptionConfig } from "./types/encryption.config";
 
 
 export class ServerEncryptionService {
@@ -21,6 +23,16 @@ export class ServerEncryptionService {
     private config: MongoClientOptions | undefined;
     private schema: IEncryptionSchema | undefined;
 
+    /**
+     * Creates a new ServerEncryptionService
+     * 
+     * @param mongoUri - MongoDB connection URI
+     * @param kmsProvider - KMS provider configuration
+     * @param keyVault - Key vault configuration
+     * @param cryptSharedFilePath - Path to the MongoDB crypto shared library
+     * @param options - Additional MongoDB client options
+     * @throws {ConfigurationError} If any configuration parameter is invalid
+     */
     constructor(
         mongoUri: string,
         kmsProvider: IKMSProvider,
@@ -28,9 +40,8 @@ export class ServerEncryptionService {
         cryptSharedFilePath: TCryptSharedFilePath,
         options?: MongoClientOptions
     ) {
-
-        if (!mongoUri || mongoUri === "") {
-            throw new Error("Invalid MongoDB URI");
+        if (!mongoUri || mongoUri.trim() === "") {
+            throw new ConfigurationError("Invalid MongoDB URI");
         }
 
         this.validateCryptSharedFilePath(cryptSharedFilePath);
@@ -44,127 +55,202 @@ export class ServerEncryptionService {
     }
 
 
+    /**
+     * Initialize the encrypted MongoDB client
+     * 
+     * @throws {ConfigurationError} If the encryption configuration is invalid
+     */
     private initialize(): void {
-        this.config = {
-            ...this.mongoClientOptions,
-            ...this.buildEncryptionConfig()
-        };
+        try {
+            this.config = {
+                ...this.mongoClientOptions,
+                ...this.buildEncryptionConfig()
+            };
 
-        this.encryptedMongoClient = new MongoClient(
-            this.mongoUri,
-            this.config
-        )
+            this.encryptedMongoClient = new MongoClient(
+                this.mongoUri,
+                this.config
+            );
+        } catch (error: any) {
+            throw new ConfigurationError(`Failed to initialize encryption: ${error.message || String(error)}`);
+        }
     }
 
-    public async initializeWithFile(schemaFilePath: TSchemaFilePath, schemaLoader?: (file: string) => IEncryptionSchema) {
+    /**
+     * Initialize the service using a schema file
+     * 
+     * @param schemaFilePath - Path to the schema file
+     * @param schemaLoader - Optional custom schema loader function
+     * @throws {ValidationError} If the schema file path is invalid
+     * @throws {ConfigurationError} If schema loading or initialization fails
+     */
+    public async initializeWithFile(schemaFilePath: TSchemaFilePath, schemaLoader?: (file: string) => IEncryptionSchema): Promise<void> {
+        try {
+            this.validateSchemaFilePath(schemaFilePath);
 
-        this.validateSchemaFilePath(schemaFilePath);
+            if (schemaLoader === undefined) {
+                this.schema = await this.loadSchemaFromFile(schemaFilePath);
+            } else {
+                this.schema = schemaLoader(schemaFilePath);
+            }
 
-        if (schemaLoader === undefined) {
-            this.schema = await this.loadSchemaFromFile(schemaFilePath);
+            this.initialize();
+        } catch (error: any) {
+            if (error instanceof ValidationError || error instanceof ConfigurationError) {
+                throw error;
+            }
+            throw new ConfigurationError(`Failed to initialize with schema file: ${error.message || String(error)}`);
         }
-
-        else {
-            this.schema = schemaLoader(schemaFilePath);
-        }
-
-        this.initialize();
     }
 
 
-    public initializeWithSchema(schema: IEncryptionSchema) {
+    /**
+     * Initialize the service using a schema object
+     * 
+     * @param schema - Encryption schema
+     * @throws {ValidationError} If the schema is invalid
+     * @throws {ConfigurationError} If initialization fails
+     */
+    public initializeWithSchema(schema: IEncryptionSchema): void {
         if (!schema || Object.keys(schema).length === 0) {
-            throw new Error("Encryption schema is required");
+            throw new ValidationError("Encryption schema is required and cannot be empty");
         }
 
-        this.schema = schema;
-        this.initialize();
+        try {
+            this.schema = schema;
+            this.initialize();
+        } catch (error: any) {
+            if (error instanceof ValidationError || error instanceof ConfigurationError) {
+                throw error;
+            }
+            throw new ConfigurationError(`Failed to initialize with schema: ${error.message || String(error)}`);
+        }
     }
 
 
+    /**
+     * Get the initialized MongoDB client
+     * 
+     * @returns MongoDB client with encryption enabled
+     * @throws {ConfigurationError} If the client is not initialized
+     */
     public getMongoClient(): MongoClient {
         if (!this.encryptedMongoClient) {
-            throw new Error("MongoDB client is not initialized");
+            throw new ConfigurationError("MongoDB client is not initialized. Call initializeWithSchema or initializeWithFile first.");
         }
         return this.encryptedMongoClient;
     }
 
+    /**
+     * Get the encryption schema
+     * 
+     * @returns Encryption schema
+     * @throws {ConfigurationError} If the schema is not initialized
+     */
     public getSchema(): IEncryptionSchema {
         if (!this.schema) {
-            throw new Error("Encryption schema is not initialized");
+            throw new ConfigurationError("Encryption schema is not initialized. Call initializeWithSchema or initializeWithFile first.");
         }
         return this.schema;
     }
 
 
+    /**
+     * Validate the crypt shared library path
+     * 
+     * @param filePath - Path to crypt shared library
+     * @throws {ValidationError} If the file path is invalid or the file doesn't exist
+     */
     private validateCryptSharedFilePath(filePath: TCryptSharedFilePath): void {
-        if (!filePath || filePath === "") {
-            throw new Error("Crypt shared file path is required");
+        if (!filePath || filePath.trim() === "") {
+            throw new ValidationError("Crypt shared file path is required");
         }
 
         if (!fileExists(filePath)) {
-            throw new Error(`Crypt shared file does not exist at path: ${filePath}`);
+            throw new ValidationError(`Crypt shared file does not exist at path: ${filePath}`);
         }
-
     }
 
+    /**
+     * Validate the schema file path
+     * 
+     * @param filePath - Path to schema file
+     * @throws {ValidationError} If the file path is invalid or the file doesn't exist
+     */
     private validateSchemaFilePath(filePath: TSchemaFilePath): void {
-        if (!filePath || filePath === "") {
-            throw new Error("Schema file path is required");
+        if (!filePath || filePath.trim() === "") {
+            throw new ValidationError("Schema file path is required");
         }
 
         if (!fileExists(filePath)) {
-            throw new Error(`Schema file does not exist at path: ${filePath}`);
+            throw new ValidationError(`Schema file does not exist at path: ${filePath}`);
         }
-
     }
 
-    private buildEncryptionConfig(): any {
-
+    /**
+     * Build the MongoDB encryption configuration
+     * 
+     * @returns Encryption configuration for MongoDB client
+     * @throws {ConfigurationError} If configuration is invalid
+     * @throws {ValidationError} If schema validation fails
+     */
+    private buildEncryptionConfig(): IEncryptionConfig {
+        // Validate required configurations
         if (!this.keyVault || !this.keyVault.database || !this.keyVault.collection) {
-            throw new Error("Invalid key vault configuration");
+            throw new ConfigurationError("Invalid key vault configuration. Database and collection are required.");
         }
 
         if (!this.kmsProvider) {
-            throw new Error("KMS provider is required");
+            throw new ConfigurationError("KMS provider is required");
         }
 
         if (!this.schema) {
-            throw new Error("Encryption schema is required");
+            throw new ConfigurationError("Encryption schema is required");
         }
 
-        validateCSFLESchema(this.schema)
+        // Validate the schema structure
+        try {
+            validateCSFLESchema(this.schema);
+        } catch (error: any) {
+            throw new ValidationError(`Schema validation failed: ${error.message}`);
+        }
 
         // Create the proper KMS providers structure based on the provider type
         const kmsProviders: Record<string, any> = {};
-        switch (this.kmsProvider.type) {
-            case "local":
-                kmsProviders.local = { key: this.kmsProvider.local.key };
-                break;
-            case "aws":
-                kmsProviders.aws = {
-                    accessKeyId: this.kmsProvider.aws.accessKeyId,
-                    secretAccessKey: this.kmsProvider.aws.secretAccessKey,
-                    sessionToken: this.kmsProvider.aws.sessionToken
-                };
-                break;
-            case "azure":
-                kmsProviders.azure = {
-                    clientId: this.kmsProvider.azure.clientId,
-                    clientSecret: this.kmsProvider.azure.clientSecret,
-                    tenantId: this.kmsProvider.azure.tenantId
-                };
-                break;
-
-            case "gcp": {
-                kmsProviders.gcp = {
-                    email: this.kmsProvider.gcp.email,
-                    privateKey: this.kmsProvider.gcp.privateKey
-                };
-                break;
+        try {
+            switch (this.kmsProvider.type) {
+                case "local":
+                    kmsProviders.local = { key: this.kmsProvider.local.key };
+                    break;
+                case "aws":
+                    kmsProviders.aws = {
+                        accessKeyId: this.kmsProvider.aws.accessKeyId,
+                        secretAccessKey: this.kmsProvider.aws.secretAccessKey,
+                        sessionToken: this.kmsProvider.aws.sessionToken
+                    };
+                    break;
+                case "azure":
+                    kmsProviders.azure = {
+                        clientId: this.kmsProvider.azure.clientId,
+                        clientSecret: this.kmsProvider.azure.clientSecret,
+                        tenantId: this.kmsProvider.azure.tenantId
+                    };
+                    break;
+                case "gcp": {
+                    kmsProviders.gcp = {
+                        email: this.kmsProvider.gcp.email,
+                        privateKey: this.kmsProvider.gcp.privateKey
+                    };
+                    break;
+                }
+                default:
+                    throw new ConfigurationError(`Unsupported KMS provider: ${String(this.kmsProvider.type)}`);
             }
-            default:
-                throw new Error("Unsupported KMS provider");
+        } catch (error: any) {
+            if (error instanceof ConfigurationError) {
+                throw error;
+            }
+            throw new ConfigurationError(`Failed to configure KMS provider: ${error.message}`);
         }
 
         return {
@@ -180,16 +266,26 @@ export class ServerEncryptionService {
         };
     }
 
+    /**
+     * Load a schema from a file and generate the CSFLE schema
+     * 
+     * @param schemaFilePath - Path to the schema file
+     * @returns Generated encryption schema
+     * @throws {EncryptionError} If schema generation fails
+     */
     private async loadSchemaFromFile(schemaFilePath: string): Promise<IEncryptionSchema> {
-
-        const dekManager = new DekManager(
-            this.mongoClient,
-            `${this.keyVault.database}.${this.keyVault.collection}`,
-            this.keyVault,
-            this.kmsProvider
-        );
-        const encryptionSchemaService = new EncryptionSchemaService(dekManager);
-        return encryptionSchemaService.generateCSFLESchema(schemaFilePath);
+        try {
+            const dekManager = new DekManager(
+                this.mongoClient,
+                `${this.keyVault.database}.${this.keyVault.collection}`,
+                this.keyVault,
+                this.kmsProvider
+            );
+            const encryptionSchemaService = new EncryptionSchemaService(dekManager);
+            return await encryptionSchemaService.generateCSFLESchema(schemaFilePath);
+        } catch (error: any) {
+            throw new EncryptionError(`Failed to load schema from file ${schemaFilePath}: ${error.message}`);
+        }
     }
 
 }

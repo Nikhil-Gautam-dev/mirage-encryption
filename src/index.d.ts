@@ -3,4 +3,7 @@ export * from "./types/schema";
 export * from "./types/dekManager";
 export * from "./types/encryption";
 export * from "./types/encryptionSchemaService";
-export * from "./types/utils"
+export * from "./types/utils";
+export * from "./types/config";
+export * from "./types/encryption.config";
+export * from "./errors/errors";

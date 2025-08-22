@@ -1,5 +1,6 @@
 import fs from "fs";
 import os from "os";
+import { ValidationError } from "../errors/errors";
 
 /**
  * Validates the given crypt_shared library path:
@@ -36,21 +37,21 @@ export function validateCryptSharedLib(libPath: string): string {
             expectedMagic = [Buffer.from([0x7F, 0x45, 0x4C, 0x46])]; // ELF
             break;
         default:
-            throw new Error(`Unsupported platform: ${platform}`);
+            throw new ValidationError(`Unsupported platform: ${platform}. Only Windows, macOS, and Linux are supported.`);
     }
 
     // Check file existence
     if (!fs.existsSync(libPath)) {
-        throw new Error(
+        throw new ValidationError(
             `crypt_shared library not found at: ${libPath}\nExpected a file ending with '${expectedExt}'`
         );
     }
 
     // Check extension
     if (!libPath.endsWith(expectedExt)) {
-        throw new Error(
+        throw new ValidationError(
             `Invalid crypt_shared library extension for current platform.\n` +
-            `Provided: '${libPath}'\nExpected extension: '${expectedExt}'`
+            `Provided: '${libPath}'\nExpected extension: '${expectedExt}' for ${platform}`
         );
     }
 
@@ -65,7 +66,7 @@ export function validateCryptSharedLib(libPath: string): string {
     );
 
     if (!isValidMagic) {
-        throw new Error(
+        throw new ValidationError(
             `File exists but does not appear to be a valid ${platform} shared library.\n` +
             `Magic bytes found: ${buffer.toString("hex")}`
         );

@@ -3,6 +3,8 @@ import {
     IKMSProvider
 } from "./types/kms";
 import { IKeyVault, IKeyVaultDocument } from "./types/schema";
+import { EncryptionError, KMSError } from "./errors/errors";
+import { IKmsProviderConfig, IMasterKeyConfig } from "./types/config";
 
 export class DekManager {
     public readonly mongoClient: MongoClient;
@@ -17,6 +19,13 @@ export class DekManager {
         this.kmsProvider = kmsProvider;
     }
 
+    /**
+     * Gets or creates a Data Encryption Key (DEK) for a specific field
+     * 
+     * @param fieldKeyAltName - The alternate name for the key, typically the field path
+     * @returns A Binary representing the DEK ID
+     * @throws {EncryptionError} If there's an issue retrieving or creating the DEK
+     */
     public async getDEK(fieldKeyAltName: string): Promise<Binary> {
         await this.mongoClient.connect();
 
@@ -41,8 +50,8 @@ export class DekManager {
             });
 
             return dekId;
-        } catch (error) {
-            throw error;
+        } catch (error: any) {
+            throw new EncryptionError(`Failed to create or retrieve DEK for ${fieldKeyAltName}: ${error.message || String(error)}`);
         }
         finally {
             await this.mongoClient.close();
@@ -51,8 +60,12 @@ export class DekManager {
 
     /**
      * Returns the kmsProviders configuration expected by ClientEncryption.
+     * 
+     * @param provider - The KMS provider configuration
+     * @returns KMS provider configuration formatted for ClientEncryption
+     * @throws {KMSError} If the provider type is not supported
      */
-    private getKmsProviderConfig(provider: IKMSProvider): Record<string, any> {
+    private getKmsProviderConfig(provider: IKMSProvider): IKmsProviderConfig {
         switch (provider.type) {
             case "local":
                 return { local: { key: provider.local.key } };
@@ -91,14 +104,18 @@ export class DekManager {
                 };
 
             default:
-                throw new Error(`Unsupported KMS provider: ${(provider as any).type}`);
+                // This should never happen due to TypeScript checks, but as a safeguard
+                throw new KMSError(`Unsupported KMS provider: ${String((provider as any).type)}`);
         }
     }
 
     /**
      * Returns the masterKey for createDataKey based on the KMS provider.
+     * 
+     * @param provider - The KMS provider configuration
+     * @returns Master key configuration for the specified provider, or undefined for local provider
      */
-    private getMasterKey(provider: IKMSProvider): Record<string, any> | undefined {
+    private getMasterKey(provider: IKMSProvider): IMasterKeyConfig | undefined {
         switch (provider.type) {
             case "local":
                 return undefined; // local does not need a masterKey
