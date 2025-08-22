@@ -161,6 +161,7 @@ export class ServerEncryptionService {
                     email: this.kmsProvider.gcp.email,
                     privateKey: this.kmsProvider.gcp.privateKey
                 };
+                break;
             }
             default:
                 throw new Error("Unsupported KMS provider");
