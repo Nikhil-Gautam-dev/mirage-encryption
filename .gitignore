@@ -141,4 +141,3 @@ vite.config.ts.timestamp-*
 # custom config files
 config/
 local-master-key.txt
-test/  
